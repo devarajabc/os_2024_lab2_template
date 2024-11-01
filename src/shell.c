@@ -83,6 +83,7 @@ int spawn_proc(struct cmd_node *p) {
         } else {
             return -1;
         }
+        return 0; //Keep shell running
     }
 }
 // ===============================================================
@@ -100,6 +101,7 @@ int spawn_proc(struct cmd_node *p) {
 int fork_cmd_node(struct cmd *cmd) {
     int fds[2], in = STDIN_FILENO;
     struct cmd_node *curr = cmd->head;
+    pid_t last_pid;
 
     while (curr) {
         if (curr->next) {
@@ -127,18 +129,23 @@ int fork_cmd_node(struct cmd *cmd) {
             perror("Failed to execvp");
             exit(EXIT_FAILURE);
         } else { // Parent process
+            last_pid = pid; // Save the PID of the last command
             if (in != STDIN_FILENO) {
                 close(in);
             }
             if (curr->next) {
                 close(fds[1]);
                 in = fds[0]; // Next command reads from here
+            } else {
+                close(fds[0]);
             }
-            wait(NULL);
         }
         curr = curr->next;
     }
-    return 0;
+
+    int status;
+    waitpid(last_pid, &status, 0);  // Wait for the last command in the pipeline
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 // ===============================================================
 
