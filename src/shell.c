@@ -70,9 +70,9 @@ int spawn_proc(struct cmd_node *p) {
         return -1;
     } else if (pid == 0) { // Child process
         redirection(p);
-        if (execvp(p->args[0], p->args) == -1) {
-            perror("Failed to execvp");
-            exit(EXIT_FAILURE);
+        execvp(p->args[0], p->args);
+        perror("Failed to execvp");
+        exit(EXIT_FAILURE);
         }
         exit(EXIT_SUCCESS);
     } else { // Parent process
