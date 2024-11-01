@@ -97,9 +97,48 @@ int spawn_proc(struct cmd_node *p) {
  * @return int
  * Return execution status 
  */
-int fork_cmd_node(struct cmd *cmd)
-{
-	return 1;
+int fork_cmd_node(struct cmd *cmd) {
+    int fds[2], in = STDIN_FILENO;
+    struct cmd_node *curr = cmd->head;
+
+    while (curr) {
+        if (curr->next) {
+            if (pipe(fds) == -1) {
+                perror("Failed to create pipe");
+                return -1;
+            }
+        }
+
+        pid_t pid = fork();
+        if (pid == -1) {
+            perror("Failed to fork");
+            return -1;
+        } else if (pid == 0) { // Child process
+            if (in != STDIN_FILENO) {
+                dup2(in, STDIN_FILENO);
+                close(in);
+            }
+            if (curr->next) {
+                close(fds[0]);
+                dup2(fds[1], STDOUT_FILENO);
+                close(fds[1]);
+            }
+            execvp(curr->args[0], curr->args);
+            perror("Failed to execvp");
+            exit(EXIT_FAILURE);
+        } else { // Parent process
+            if (in != STDIN_FILENO) {
+                close(in);
+            }
+            if (curr->next) {
+                close(fds[1]);
+                in = fds[0]; // Next command reads from here
+            }
+            wait(NULL);
+        }
+        curr = curr->next;
+    }
+    return 0;
 }
 // ===============================================================
 
