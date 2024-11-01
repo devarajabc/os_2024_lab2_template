@@ -19,8 +19,32 @@
  * @param p cmd_node structure
  * 
  */
-void redirection(struct cmd_node *p){
-	
+void redirection(struct cmd_node *p) {
+    if (p->in_file != NULL) {
+        int fd = open(p->in_file, O_RDONLY);
+        if (fd == -1) {
+            perror("Failed to open input file");
+            exit(EXIT_FAILURE);
+        }
+        if (dup2(fd, STDIN_FILENO) == -1) {
+            perror("Failed to redirect stdin");
+            exit(EXIT_FAILURE);
+        }
+        close(fd);
+    }
+
+    if (p->out_file != NULL) {
+        int fd = open(p->out_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd == -1) {
+            perror("Failed to open output file");
+            exit(EXIT_FAILURE);
+        }
+        if (dup2(fd, STDOUT_FILENO) == -1) {
+            perror("Failed to redirect stdout");
+            exit(EXIT_FAILURE);
+        }
+        close(fd);
+    }
 }
 // ===============================================================
 
