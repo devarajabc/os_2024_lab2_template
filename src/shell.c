@@ -21,7 +21,7 @@
  */
 void redirection(struct cmd_node *p) {
     if (p->in_file != NULL) {
-        int fd = open(p->in_file, O_RDONLY);
+        int fd = open(p->in_file, O_RDONLY | O_CREAT| O_TRUNC, 0666);
         if (fd == -1) {
             perror("Failed to open input file");
             exit(EXIT_FAILURE);
