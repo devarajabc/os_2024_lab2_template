@@ -34,10 +34,32 @@ void redirection(struct cmd_node *p){
  * @param p cmd_node structure
  * @return int 
  * Return execution status
+ *  The separation of fork() and exec() is essential in building a UNIX shell, because it lets the shell run code after
+the call to fork() but before the call to exec(); this code can alter the
+environment of the about-to-be-run program, and thus enables a variety
+of interesting features to be readily built.
  */
-int spawn_proc(struct cmd_node *p)
-{
-  	return 1;
+int spawn_proc(struct cmd_node *p) {
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("Failed to fork");
+        return -1;
+    } else if (pid == 0) { // Child process
+        redirection(p);
+        if (execvp(p->args[0], p->args) == -1) {
+            perror("Failed to execvp");
+            exit(EXIT_FAILURE);
+        }
+        exit(EXIT_SUCCESS);
+    } else { // Parent process
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status)) {
+            return WEXITSTATUS(status);
+        } else {
+            return -1;
+        }
+    }
 }
 // ===============================================================
 
