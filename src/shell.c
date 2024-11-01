@@ -98,45 +98,45 @@ int spawn_proc(struct cmd_node *p) {
  * Return execution status 
  */
 int fork_cmd_node(struct cmd *cmd) {
-    int status = 0;
-    int in = 0, fd[2];
+    int fds[2], in = STDIN_FILENO;
+    struct cmd_node *curr = cmd->head;
 
-    struct cmd_node *current = cmd->head;
-    while (current != NULL) {
-        if (current->next != NULL) { // Not the last command, need to create a pipe
-            if (pipe(fd) == -1) {
-                perror("pipe");
+    while (curr) {
+        if (curr->next) {
+            if (pipe(fds) == -1) {
+                perror("Failed to create pipe");
                 return 1;
             }
         }
 
         pid_t pid = fork();
-        if (pid == 0) { // Child process
-            close(fd[0]);
-            if (in != 0) {
+        if (pid == -1) {
+            perror("Failed to fork");
+            return 1;
+        } else if (pid == 0) { // Child process
+            if (in != STDIN_FILENO) {
                 dup2(in, STDIN_FILENO);
                 close(in);
             }
-            if (current->next != NULL) {
-                dup2(fd[1], STDOUT_FILENO);
-                close(fd[1]);
+            if (curr->next) {
+                close(fds[0]);
+                dup2(fds[1], STDOUT_FILENO);
+                close(fds[1]);
             }
-            redirection(current); // Handle any redirections
-            execvp(current->args[0], current->args);
-            perror("execvp failed");
+            execvp(curr->args[0], curr->args);
+            perror("Failed to execvp");
             return 1;
-        } else if (pid < 0) {
-            perror("fork failed");
-            return 1;
+        } else { // Parent process
+            if (in != STDIN_FILENO) {
+                close(in);
+            }
+            if (curr->next) {
+                close(fds[1]);
+                in = fds[0]; // Next command reads from here
+            }
+            wait(NULL);
         }
-
-        // Parent process
-        waitpid(pid, &status, 0);
-        if (in != 0) close(in);  // Close the old input side of the pipe
-        if (current->next != NULL) close(fd[1]);  // Close the output side of the pipe
-        in = fd[0];  // Save the input side of the pipe to be the input for the next command
-
-        current = current->next;
+        curr = curr->next;
     }
     return 1;
 }
