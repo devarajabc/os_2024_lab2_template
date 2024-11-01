@@ -55,6 +55,23 @@ int help(char **args)
 // ======================= requirement 2.1 =======================
 int cd(char **args)
 {
+	 if (args[1] == NULL) {
+        char *home = getenv("HOME");
+        if (home != NULL) {
+            if (chdir(home) != 0) {
+                perror("cd");
+                return 1; // Return 1 to indicate command execution continue in shell
+            }
+        } else {
+            printf("cd: HOME not set\n");
+            return 1; // Return 1 to indicate command execution continue in shell
+        }
+    } else {
+        if (chdir(args[1]) != 0) {
+            perror("cd");
+            return 1; // Return 1 to indicate command execution continue in shell
+        }
+    }
 	return 1;
 }
 // ===============================================================
