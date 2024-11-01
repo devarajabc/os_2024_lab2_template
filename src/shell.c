@@ -67,23 +67,22 @@ int spawn_proc(struct cmd_node *p) {
     pid_t pid = fork();
     if (pid == -1) {
         perror("Failed to fork");
-        return -1;
+        return 1;        
     } else if (pid == 0) { // Child process
         redirection(p);
-        execvp(p->args[0], p->args);
-        perror("Failed to execvp");
-        exit(EXIT_FAILURE);
+        if (execvp(p->args[0], p->args) == -1) {
+            perror("Failed to execvp");
+            return 1;
         }
-        exit(EXIT_SUCCESS);
+        return 1;
     } else { // Parent process
         int status;
         waitpid(pid, &status, 0);
         if (WIFEXITED(status)) {
-            return WEXITSTATUS(status);
+            return 1;
         } else {
-            return -1;
+            return 1;
         }
-        return 0; //Keep shell running
     }
 }
 // ===============================================================
@@ -99,53 +98,47 @@ int spawn_proc(struct cmd_node *p) {
  * Return execution status 
  */
 int fork_cmd_node(struct cmd *cmd) {
-    int fds[2], in = STDIN_FILENO;
-    struct cmd_node *curr = cmd->head;
-    pid_t last_pid;
+    int status = 0;
+    int in = 0, fd[2];
 
-    while (curr) {
-        if (curr->next) {
-            if (pipe(fds) == -1) {
-                perror("Failed to create pipe");
-                return -1;
+    struct cmd_node *current = cmd->head;
+    while (current != NULL) {
+        if (current->next != NULL) { // Not the last command, need to create a pipe
+            if (pipe(fd) == -1) {
+                perror("pipe");
+                return 1;
             }
         }
 
         pid_t pid = fork();
-        if (pid == -1) {
-            perror("Failed to fork");
-            return -1;
-        } else if (pid == 0) { // Child process
-            if (in != STDIN_FILENO) {
+        if (pid == 0) { // Child process
+            close(fd[0]);
+            if (in != 0) {
                 dup2(in, STDIN_FILENO);
                 close(in);
             }
-            if (curr->next) {
-                close(fds[0]);
-                dup2(fds[1], STDOUT_FILENO);
-                close(fds[1]);
+            if (current->next != NULL) {
+                dup2(fd[1], STDOUT_FILENO);
+                close(fd[1]);
             }
-            execvp(curr->args[0], curr->args);
-            perror("Failed to execvp");
-            exit(EXIT_FAILURE);
-        } else { // Parent process
-            last_pid = pid; // Save the PID of the last command
-            if (in != STDIN_FILENO) {
-                close(in);
-            }
-            if (curr->next) {
-                close(fds[1]);
-                in = fds[0]; // Next command reads from here
-            } else {
-                close(fds[0]);
-            }
+            redirection(current); // Handle any redirections
+            execvp(current->args[0], current->args);
+            perror("execvp failed");
+            return 1;
+        } else if (pid < 0) {
+            perror("fork failed");
+            return 1;
         }
-        curr = curr->next;
-    }
 
-    int status;
-    waitpid(last_pid, &status, 0);  // Wait for the last command in the pipeline
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+        // Parent process
+        waitpid(pid, &status, 0);
+        if (in != 0) close(in);  // Close the old input side of the pipe
+        if (current->next != NULL) close(fd[1]);  // Close the output side of the pipe
+        in = fd[0];  // Save the input side of the pipe to be the input for the next command
+
+        current = current->next;
+    }
+    return 1;
 }
 // ===============================================================
 
